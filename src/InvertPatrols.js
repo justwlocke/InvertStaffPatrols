@@ -1,6 +1,9 @@
 /// <reference path="../lib/openrct2.d.ts" />
 
 
+const viewport = "staff-selector-viewport";
+var toggle = false;
+
 function invertPatrolArea() {
     console.log("Now actually do the code.")
 
@@ -26,14 +29,20 @@ function windowChecker() {
     }
 }
 
+var window = null;
+
 function openWindow() {
-    var window = ui.getWindow("staff-selector-window");
+    window = ui.getWindow("staff-selector-window");
 	if(window) {
 		debug("The Staff Selector window is already shown.");
 		window.bringToFront();
 	}
 	else {
-	    ui.openWindow({
+        ui.openWindow({
+            onClose: function() {
+                toggle = false
+                ui.tool.cancel() 
+            },
 		    classification: "staff-selector-window",
 		    title: "Staff Selector",
 		    width: 260,
@@ -54,7 +63,18 @@ function openWindow() {
                                 left: -9000,
                                 top: -9000,
 							}
-						},
+                        },
+                        {
+                            type: "button",
+                            border: true,
+                            x: 25,
+                            y: 160,
+                            width: 24,
+                            height: 24,
+                            image: 29467,
+                            isPressed: toggle,
+                            onClick: selectStaff(),
+                        },
                     ]
                 },
             ]
@@ -64,6 +84,63 @@ function openWindow() {
 	}
 }
 
+var update = null;
+
+function selectStaff() {
+    console.log("Select Staff button pressed.");
+
+    if (!window) {
+        return
+    }
+    else {
+        if (toggle !== false) {
+            toggle = false
+            buttonPicker.isPressed = toggle
+            ui.tool.cancel();
+        }
+        else {
+            toggle = true;
+            buttonPicker.isPressed = toggle
+            ui.activateTool({
+                id: toolSelectStaff,
+                cursor: "cross_hair",
+                filter: ["entity"],
+                onDown: checkEntity(),
+            })
+        }
+    }
+}
+
+function checkEntity() {
+    var pluginViewport = window.findWidget<ViewportWidget>(viewport);
+
+    if (e.entityId !== undefined) {
+        console.log(e.entityId)
+        var entity = map.getEntity(e.entityId);
+        var staff = entity.staff;
+        idStaff = staff;
+        if (!entity || entity.type !== "staff") {
+            toggle = false;
+            if (update !== null) {
+                update.dispose();
+                update = null;
+            }
+            pluginViewport.viewport.moveTo({x: -9000, y: -9000, z: 0});
+            ui.tool.cancel();
+            ui.showError("You have to select", "a staff member")
+            debug("invalid entity selected");
+        }
+        else {
+            ui.tool.cancel();
+            toggle = false;
+            const pluginViewport = window.findWidget<ViewportWidget>(viewport);
+            update = context.subscribe("interval.tick", function () {
+                pluginViewport.viewport.moveTo({ x: staff.x, y: staff.y, z: staff.z })
+                });
+        }
+    }
+    return
+}
 
 
 function main() {
